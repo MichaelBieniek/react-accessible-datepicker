@@ -7,6 +7,7 @@ import { DATE_PART } from "./constants";
 import Td from "./Td";
 
 const Root = styled.div`
+  font-size: 16px;
   color: #000;
   position: relative;
 `;
@@ -28,8 +29,11 @@ const Header = styled.div`
 const Table = styled.table`
   width: 100%;
   text-align: center;
-  font-size: 8px;
   color: #000;
+
+  & th {
+    cursor: help;
+  }
 `;
 
 const WEEKS = [0, 1, 2, 3, 4];
@@ -122,7 +126,9 @@ const Datepicker = props => {
         <Picker>
           <Header>
             <button onClick={() => shift(-1, DATE_PART.MONTH, true)}>{`<`}</button>
-            <div>{months[month]}</div>
+            <div>
+              {months[month]} {year}
+            </div>
             <button onClick={() => shift(1, DATE_PART.MONTH, true)}>{`>`}</button>
           </Header>
           <Table
@@ -167,11 +173,14 @@ const Datepicker = props => {
 
 Datepicker.propTypes = {
   /** should the picker be popped on mount */
-  isAutoPop: PropTypes.bool
+  isAutoPop: PropTypes.bool,
+  /** date range that should represent disabled dates */
+  disabledDays: PropTypes.object
 };
 
 Datepicker.defaultProps = {
-  isAutoPop: false
+  isAutoPop: false,
+  disabledDays: undefined
 };
 
 export default Datepicker;

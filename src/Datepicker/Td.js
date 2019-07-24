@@ -2,11 +2,17 @@ import React, { useEffect, useRef } from "react";
 import styled from "styled-components";
 
 const StyledTd = styled.td`
+  cursor: pointer;
   border-width: 1px;
   border-style: solid;
   padding: 2px;
-  border-color: ${props => (props.selected ? "#000" : "transparent")};
+  border: none;
   color: ${props => (props.isShaded ? "#ccc" : "#000")};
+  background-color: ${props => (props.selected ? "rgb(0,167,88)" : "transparent")};
+
+  &:hover {
+    background-color: rgb(240, 248, 255);
+  }
 `;
 
 const Td = ({ day, selected, setCurrentDate, isShaded }) => {
