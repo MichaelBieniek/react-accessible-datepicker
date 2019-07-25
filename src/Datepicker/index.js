@@ -1,8 +1,9 @@
 import React, { useState, useCallback, useMemo } from "react";
 import PropTypes from "prop-types";
 import styled from "styled-components";
+import moment from "moment";
 import { getWeekDays, getMonths } from "./i18n";
-import { genDaysOfMonth } from "./utils";
+import { genDaysOfMonth, isDisabledDay, clampMonth } from "./utils";
 import { DATE_PART } from "./constants";
 import Td from "./Td";
 
@@ -15,8 +16,7 @@ const Root = styled.div`
 const Picker = styled.div`
   display: block;
   position: absolute;
-  width: 250px;
-
+  width: 355px;
   border: 1px solid;
   background: #fff;
 `;
@@ -36,21 +36,32 @@ const Table = styled.table`
   }
 `;
 
-const WEEKS = [0, 1, 2, 3, 4];
+const WEEKS_FIVE = [0, 1, 2, 3, 4];
+const WEEKS_SIX = [...WEEKS_FIVE, 5];
 
 const Datepicker = props => {
-  const { isAutoPop, lang, value, handleChange } = props;
-
+  const {
+    isAutoPop,
+    dateFormat,
+    defaultDate = "",
+    disabledDays,
+    lang,
+    nextMonthTitle,
+    prevMonthTitle,
+    handleChange
+  } = props;
+  const { before, after } = disabledDays;
   const [isPickerOpen, setPickerOpen] = useState(isAutoPop);
 
-  const [currentDate, setCurrentDate] = useState(value || new Date());
+  const [currentDate, setCurrentDate] = useState(defaultDate || new Date());
+  const [value, setValue] = useState(defaultDate);
 
   const date = currentDate.getDate();
   const month = currentDate.getMonth();
   const year = currentDate.getFullYear();
-  const _getDaysOfMonth = useCallback(() => genDaysOfMonth(year, month), [year, month]);
-
-  const daysOfMonth = _getDaysOfMonth(year, month);
+  const _getDaysOfMonth = useCallback(() => genDaysOfMonth(year, month, disabledDays), [year, month, disabledDays]);
+  const daysOfMonth = _getDaysOfMonth(year, month, disabledDays);
+  const weeks = daysOfMonth.length > 35 ? WEEKS_SIX : WEEKS_FIVE;
 
   // get memoized and localized text
   const daysOfWeek = useMemo(() => getWeekDays(lang), [lang]);
@@ -61,28 +72,38 @@ const Datepicker = props => {
   const shift = (offset, type = DATE_PART.DAY, isFirstOfMonth = false) => {
     switch (type) {
       case DATE_PART.YEAR: {
-        setCurrentDate(
-          new Date(
-            currentDate.getFullYear() + offset,
-            currentDate.getMonth(),
-            isFirstOfMonth ? 1 : currentDate.getDate()
-          )
+        const requestedDate = new Date(
+          currentDate.getFullYear() + offset,
+          currentDate.getMonth(),
+          isFirstOfMonth ? 1 : currentDate.getDate()
         );
+        if (!isDisabledDay(requestedDate, before, after)) {
+          setCurrentDate(requestedDate);
+        }
         break;
       }
       case DATE_PART.MONTH: {
-        setCurrentDate(
-          new Date(
-            currentDate.getFullYear(),
-            currentDate.getMonth() + offset,
-            isFirstOfMonth ? 1 : currentDate.getDate()
-          )
+        const requestedDate = new Date(
+          currentDate.getFullYear(),
+          currentDate.getMonth() + offset,
+          isFirstOfMonth ? 1 : currentDate.getDate()
         );
+
+        if (!isDisabledDay(requestedDate, before, after)) {
+          setCurrentDate(requestedDate);
+        }
         break;
       }
       case DATE_PART.DAY:
       default: {
-        setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate() + offset));
+        const requestedDate = new Date(
+          currentDate.getFullYear(),
+          currentDate.getMonth(),
+          currentDate.getDate() + offset
+        );
+        if (!isDisabledDay(requestedDate, before, after)) {
+          setCurrentDate(requestedDate);
+        }
         break;
       }
     }
@@ -108,8 +129,9 @@ const Datepicker = props => {
         break;
       }
       case "Enter": {
-        handleChange(new Date(year, month, date));
+        setValue(moment([year, month, date]).format(dateFormat));
         setPickerOpen(false);
+        handleChange(new Date(year, month, date));
         break;
       }
       default: {
@@ -121,15 +143,28 @@ const Datepicker = props => {
   return (
     <Root>
       <p>Datepicker</p>
-      <input placeholder="DD/MM/YYYY" onClick={() => setPickerOpen(!isPickerOpen)} />
+      <input
+        placeholder="DD/MM/YYYY"
+        onClick={() => setPickerOpen(!isPickerOpen)}
+        value={value}
+        onChange={e => setValue(e.target.value)}
+      />
       {isPickerOpen && (
         <Picker>
           <Header>
-            <button onClick={() => shift(-1, DATE_PART.MONTH, true)}>{`<`}</button>
+            <button
+              title={prevMonthTitle}
+              aria-label={`${months[clampMonth(month - 1)]} ${year}`}
+              onClick={() => shift(-1, DATE_PART.MONTH, true)}
+            >{`<`}</button>
             <div>
               {months[month]} {year}
             </div>
-            <button onClick={() => shift(1, DATE_PART.MONTH, true)}>{`>`}</button>
+            <button
+              title={nextMonthTitle}
+              aria-label={`${months[clampMonth(month + 1)]} ${year}`}
+              onClick={() => shift(1, DATE_PART.MONTH, true)}
+            >{`>`}</button>
           </Header>
           <Table
             tabIndex={0}
@@ -142,7 +177,7 @@ const Datepicker = props => {
                 {daysOfWeek.map(day => {
                   const { abbr, title } = day;
                   return (
-                    <th key={abbr} role="columnheader">
+                    <th key={abbr} role="columnheader" aria-label={title}>
                       <abbr title={title}>{abbr}</abbr>
                     </th>
                   );
@@ -150,13 +185,15 @@ const Datepicker = props => {
               </tr>
             </thead>
             <tbody>
-              {WEEKS.map(week => (
+              {weeks.map(week => (
                 <tr key={`${week}`}>
                   {daysOfMonth.slice(week * 7, (week + 1) * 7).map(day => (
                     <Td
+                      lang={lang}
+                      dateFormat={dateFormat}
                       key={`${day.year}-${day.month}-${day.date}`}
                       day={day}
-                      selected={date === day.date && month === day.month}
+                      isSelected={date === day.date && month === day.month}
                       isShaded={day.month !== month}
                       setCurrentDate={setCurrentDate}
                     />
@@ -172,14 +209,23 @@ const Datepicker = props => {
 };
 
 Datepicker.propTypes = {
+  dateFormat: PropTypes.string,
   /** should the picker be popped on mount */
   isAutoPop: PropTypes.bool,
+  /** title for next month button */
+  nextMonthTitle: PropTypes.string,
+  /** title for prev month button */
+  prevMonthTitle: PropTypes.string,
+
   /** date range that should represent disabled dates */
   disabledDays: PropTypes.object
 };
 
 Datepicker.defaultProps = {
+  dateFormat: "DD-MM-YYYY",
   isAutoPop: false,
+  nextMonthTitle: "Go to next month",
+  prevMonthTitle: "Go to previous month",
   disabledDays: undefined
 };
 
