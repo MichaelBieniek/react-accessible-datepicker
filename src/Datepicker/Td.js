@@ -18,7 +18,7 @@ const StyledTd = styled.td`
   }
 `;
 
-const Td = ({ day, dateFormat, isSelected, setCurrentDate, isShaded }) => {
+const Td = ({ day, dateFormat, isSelected, selectDate, isShaded }) => {
   const { year, month, date, isDisabled } = day;
   const ref = useRef(null);
   const thisDay = moment([year, month, date]);
@@ -35,7 +35,7 @@ const Td = ({ day, dateFormat, isSelected, setCurrentDate, isShaded }) => {
       tabIndex={isSelected && !isDisabled ? 0 : -1}
       selected={isSelected}
       id={`cell-${year}-${month}-${date}`}
-      onClick={() => (isDisabled ? noop : setCurrentDate(new Date(year, month, date)))}
+      onClick={() => (isDisabled ? noop : selectDate(new Date(year, month, date)))}
       isShaded={isShaded}
       ref={ref}
       disabled={isDisabled}
@@ -57,7 +57,7 @@ Td.propTypes = {
   }),
   isSelected: PropTypes.bool,
   isShaded: PropTypes.bool,
-  setCurrentDate: PropTypes.func.isRequired
+  selectDate: PropTypes.func.isRequired
 };
 
 Td.defaultProps = {

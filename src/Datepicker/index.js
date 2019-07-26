@@ -1,9 +1,9 @@
-import React, { useState, useCallback, useMemo } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import PropTypes from "prop-types";
 import styled from "styled-components";
 import moment from "moment";
 import { getWeekDays, getMonths } from "./i18n";
-import { genDaysOfMonth, isDisabledDay, clampMonth } from "./utils";
+import { genDaysOfMonth, isDisabledDay, clampMonth, noop } from "./utils";
 import { DATE_PART } from "./constants";
 import Td from "./Td";
 
@@ -36,11 +36,18 @@ const Table = styled.table`
   }
 `;
 
+const ToggleMonth = styled.button`
+  background: #fff;
+  border: none;
+  padding: 5px;
+`;
+
 const WEEKS_FIVE = [0, 1, 2, 3, 4];
 const WEEKS_SIX = [...WEEKS_FIVE, 5];
 
 const Datepicker = props => {
   const {
+    id,
     isAutoPop,
     dateFormat,
     defaultDate = "",
@@ -52,9 +59,10 @@ const Datepicker = props => {
   } = props;
   const { before, after } = disabledDays;
   const [isPickerOpen, setPickerOpen] = useState(isAutoPop);
-
-  const [currentDate, setCurrentDate] = useState(defaultDate || new Date());
+  const parsedDefaultDate = defaultDate ? moment(defaultDate, dateFormat) : moment();
+  const [currentDate, setCurrentDate] = useState(parsedDefaultDate.toDate());
   const [value, setValue] = useState(defaultDate);
+  const inputRef = useRef(null);
 
   const date = currentDate.getDate();
   const month = currentDate.getMonth();
@@ -69,102 +77,159 @@ const Datepicker = props => {
 
   console.log("selected", year, month, date);
 
-  const shift = (offset, type = DATE_PART.DAY, isFirstOfMonth = false) => {
-    switch (type) {
-      case DATE_PART.YEAR: {
-        const requestedDate = new Date(
-          currentDate.getFullYear() + offset,
-          currentDate.getMonth(),
-          isFirstOfMonth ? 1 : currentDate.getDate()
-        );
-        if (!isDisabledDay(requestedDate, before, after)) {
-          setCurrentDate(requestedDate);
+  /**
+   * Shifts date selector (currentDate) by offset. Updates currentDate by calling `setCurrentDate`
+   * @param {number} offset - # of units to shift date by
+   * @param {string} type - unit of offset (year, month, day)
+   * @param {bool} isFirstOfMonth - if shift causes a month change, set day to 1
+   */
+  const shift = useCallback(
+    (offset, type = DATE_PART.DAY, isFirstOfMonth = false) => {
+      switch (type) {
+        case DATE_PART.YEAR: {
+          const requestedDate = new Date(
+            currentDate.getFullYear() + offset,
+            currentDate.getMonth(),
+            isFirstOfMonth ? 1 : currentDate.getDate()
+          );
+          if (!isDisabledDay(requestedDate, before, after)) {
+            setCurrentDate(requestedDate);
+          }
+          break;
         }
-        break;
-      }
-      case DATE_PART.MONTH: {
-        const requestedDate = new Date(
-          currentDate.getFullYear(),
-          currentDate.getMonth() + offset,
-          isFirstOfMonth ? 1 : currentDate.getDate()
-        );
+        case DATE_PART.MONTH: {
+          const requestedDate = new Date(
+            currentDate.getFullYear(),
+            currentDate.getMonth() + offset,
+            isFirstOfMonth ? 1 : currentDate.getDate()
+          );
 
-        if (!isDisabledDay(requestedDate, before, after)) {
-          setCurrentDate(requestedDate);
+          if (!isDisabledDay(requestedDate, before, after)) {
+            setCurrentDate(requestedDate);
+          }
+          break;
         }
-        break;
-      }
-      case DATE_PART.DAY:
-      default: {
-        const requestedDate = new Date(
-          currentDate.getFullYear(),
-          currentDate.getMonth(),
-          currentDate.getDate() + offset
-        );
-        if (!isDisabledDay(requestedDate, before, after)) {
-          setCurrentDate(requestedDate);
+        case DATE_PART.DAY:
+        default: {
+          const requestedDate = new Date(
+            currentDate.getFullYear(),
+            currentDate.getMonth(),
+            currentDate.getDate() + offset
+          );
+          if (!isDisabledDay(requestedDate, before, after)) {
+            setCurrentDate(requestedDate);
+          }
+          break;
         }
-        break;
       }
-    }
-  };
+    },
+    [currentDate, before, after]
+  );
 
-  const arrowKeyHandler = e => {
-    const { key } = e;
-    switch (key) {
-      case "ArrowLeft": {
-        shift(-1);
-        break;
+  /**
+   * Selects date by updating internal text value (setValue), date in frame (setCurrentDate) as well as calling the handleChange callback.
+   * Picker is closed on select & text input is focused.
+   * @param {Date} newDate - JS Date to select
+   */
+  const selectDate = useCallback(
+    newDate => {
+      const day = moment(newDate);
+      setValue(day.format(dateFormat));
+      setCurrentDate(day.toDate());
+      handleChange(day.format(dateFormat));
+      setPickerOpen(false);
+      inputRef.current.focus();
+    },
+    [dateFormat, handleChange]
+  );
+
+  const deselectDate = useCallback(() => {
+    setValue("");
+    setCurrentDate(new Date());
+    handleChange("");
+  }, [handleChange]);
+
+  const arrowKeyHandler = useCallback(
+    e => {
+      const { key } = e;
+      switch (key) {
+        case "ArrowLeft": {
+          shift(-1);
+          break;
+        }
+        case "ArrowRight": {
+          shift(+1);
+          break;
+        }
+        case "ArrowUp": {
+          shift(-7);
+          break;
+        }
+        case "ArrowDown": {
+          shift(+7);
+          break;
+        }
+        case "Enter": {
+          selectDate(new Date(year, month, date));
+          break;
+        }
+        default: {
+          break;
+        }
       }
-      case "ArrowRight": {
-        shift(+1);
-        break;
-      }
-      case "ArrowUp": {
-        shift(-7);
-        break;
-      }
-      case "ArrowDown": {
-        shift(+7);
-        break;
-      }
-      case "Enter": {
-        setValue(moment([year, month, date]).format(dateFormat));
-        setPickerOpen(false);
-        handleChange(new Date(year, month, date));
-        break;
-      }
-      default: {
-        break;
-      }
-    }
-  };
+    },
+    [year, month, date, selectDate, shift]
+  );
 
   return (
     <Root>
       <p>Datepicker</p>
       <input
+        id={`${id}-input`}
+        ref={inputRef}
         placeholder="DD/MM/YYYY"
         onClick={() => setPickerOpen(!isPickerOpen)}
         value={value}
-        onChange={e => setValue(e.target.value)}
+        onBlur={useCallback(
+          e => {
+            const { value: newValue } = e.target;
+            if (newValue && newValue !== value) {
+              const parsedDate = moment(value);
+              if (parsedDate.isValid()) {
+                selectDate(parsedDate.toDate());
+              }
+            } else {
+              deselectDate();
+            }
+          },
+          [selectDate, deselectDate, value]
+        )}
+        onChange={useCallback(e => setValue(e.target.value), [])}
+        onKeyDown={useCallback(e => {
+          const { key } = e;
+          if (key === "Enter") {
+            setPickerOpen(true);
+          }
+        }, [])}
+        aria-haspopup={true}
+        aria-controls={`${id}-input`}
       />
       {isPickerOpen && (
-        <Picker>
+        <Picker id={`${id}-picker`}>
           <Header>
-            <button
+            <ToggleMonth
               title={prevMonthTitle}
               aria-label={`${months[clampMonth(month - 1)]} ${year}`}
               onClick={() => shift(-1, DATE_PART.MONTH, true)}
-            >{`<`}</button>
+            >{`<`}</ToggleMonth>
             <div>
               {months[month]} {year}
             </div>
-            <button
+            <ToggleMonth
               title={nextMonthTitle}
               aria-label={`${months[clampMonth(month + 1)]} ${year}`}
               onClick={() => shift(1, DATE_PART.MONTH, true)}
-            >{`>`}</button>
+            >{`>`}</ToggleMonth>
           </Header>
           <Table
             tabIndex={0}
@@ -195,7 +260,7 @@ const Datepicker = props => {
                       day={day}
                       isSelected={date === day.date && month === day.month}
                       isShaded={day.month !== month}
-                      setCurrentDate={setCurrentDate}
+                      selectDate={selectDate}
                     />
                   ))}
                 </tr>
@@ -209,24 +274,36 @@ const Datepicker = props => {
 };
 
 Datepicker.propTypes = {
+  id: PropTypes.string,
+  /** the moment.js format to use when parsing / formatting dates */
   dateFormat: PropTypes.string,
+  /** the string representation of starting date */
+  defaultValue: PropTypes.oneOfType([PropTypes.string, PropTypes.instanceOf(Date)]),
+  /** date range that should represent disabled dates */
+  disabledDays: PropTypes.object,
+  /**
+   * callback function when the provided date via text input is invalid.
+   * The picker itself will not fire the handleError function because invalid dates cannot be selected.
+   */
+  handleError: PropTypes.func,
+  onChange: PropTypes.func,
   /** should the picker be popped on mount */
   isAutoPop: PropTypes.bool,
   /** title for next month button */
   nextMonthTitle: PropTypes.string,
   /** title for prev month button */
-  prevMonthTitle: PropTypes.string,
-
-  /** date range that should represent disabled dates */
-  disabledDays: PropTypes.object
+  prevMonthTitle: PropTypes.string
 };
 
 Datepicker.defaultProps = {
+  id: undefined,
   dateFormat: "DD-MM-YYYY",
+  defaultValue: "",
+  disabledDays: undefined,
+  handleError: noop,
   isAutoPop: false,
   nextMonthTitle: "Go to next month",
-  prevMonthTitle: "Go to previous month",
-  disabledDays: undefined
+  prevMonthTitle: "Go to previous month"
 };
 
 export default Datepicker;
