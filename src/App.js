@@ -6,7 +6,12 @@ function App() {
   return (
     <div className="App">
       <header className="App-header">
-        <Datepicker handleChange={e => console.log(e)} disabledDays={{ before: new Date(2019, 6, 21) }} />
+        <Datepicker
+          dateFormat="DD-MM-YYYY"
+          defaultValue="25-07-2019"
+          disabledDays={{ before: new Date(2019, 6, 21) }}
+          onChange={e => console.log(e)}
+        />
       </header>
     </div>
   );

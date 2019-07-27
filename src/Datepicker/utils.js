@@ -1,3 +1,5 @@
+import { DATE_PART } from "./constants";
+
 export const genDaysOfMonth = (year, month, disabledDays = {}) => {
   const date = new Date(year, month, 1);
   const { before, after } = disabledDays;
@@ -66,6 +68,29 @@ export const isDisabledDay = (date, before, after) => {
     return true;
   }
   return false;
+};
+
+export const shiftDate = (currentDate, offset, type, isFirstOfMonth) => {
+  switch (type) {
+    case DATE_PART.YEAR: {
+      return new Date(
+        currentDate.getFullYear() + offset,
+        currentDate.getMonth(),
+        isFirstOfMonth ? 1 : currentDate.getDate()
+      );
+    }
+    case DATE_PART.MONTH: {
+      return new Date(
+        currentDate.getFullYear(),
+        currentDate.getMonth() + offset,
+        isFirstOfMonth ? 1 : currentDate.getDate()
+      );
+    }
+    case DATE_PART.DAY:
+    default: {
+      return new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate() + offset);
+    }
+  }
 };
 
 export const clampMonth = (month, adj) => (((month + adj) % 12) + adj >= 0 ? 0 : 12);
